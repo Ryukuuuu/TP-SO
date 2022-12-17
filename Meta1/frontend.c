@@ -73,34 +73,37 @@ void getCommand(){
                 }
             } else if (strcmp(command, "sell") == 0) { 
                 i = 0;
-                printf("selling");
                 token = strtok(NULL, " ");
-                if (token != NULL) {
-                    strcpy(newItem.name, token);
+                if(token!=NULL){
+                    strcpy(newItem.name,token);
                     i++;
+                    token = strtok(NULL," ");
+                    if(token!=NULL){
+                        strcpy(newItem.category,token);
+                        i++;
+                        token=strtok(NULL," ");
+                        if(token!=NULL && stringIsNum(token)){
+                            newItem.baseValue = atoi(token);
+                            i++;
+                            token=strtok(NULL," ");
+                            if(token!=NULL && stringIsNum(token)){
+                                newItem.buyNow=atoi(token);
+                                i++;
+                                token=strtok(NULL," ");
+                                if(token!=NULL && stringIsNum(token)){
+                                    newItem.time=atoi(token);
+                                    i++;
+                                }
+                            }
+                        }
+                    }
                 }
-                token = strtok(NULL, " ");
-                if (token != NULL) {
-                    strcpy(newItem.category, token);
-                    i++;
+                if(i<5){
+                    printf("Invalid number of args\n");
                 }
-                token = strtok(NULL, " ");
-                if (stringIsNum(token) && token != NULL)
-                    newItem.baseValue = atoi(token);
-                else
-                    printf("Basevalue must be integer\n");
-                token = strtok(NULL, " ");
-                if (stringIsNum(token) && token != NULL)
-                    newItem.buyNow = atoi(token);
-                else
-                    printf("BuyNow must be integer\n");
-                token = strtok(NULL, " ");
-                if (stringIsNum(token) && token != NULL)
-                    newItem.time = atoi(token);
-                else
-                    printf("Time must be integer\n");
-            } else {
-                printf("Not enought args\n");
+                else{
+                    printf("Sell successfull\n");
+                }
             }
         }
     }while(strcmp(command,"exit"));
