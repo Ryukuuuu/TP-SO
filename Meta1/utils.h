@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <ctype.h>
 #include <errno.h>
+#include <pthread.h>
 
 #define MAX_USERS 20;
 #define MAX_PROMS 10;
@@ -26,7 +27,12 @@
 typedef struct user user,*pUser;
 typedef struct item item,*pItem;
 typedef struct bid bid, *pBid;
-//typedef struct leilao leilao, *pLeilao;
+
+struct bid{
+    pid_t pid;
+    int ammount;
+    int itemId;
+};
 
 struct user{
     char userName[STR_SIZE];
@@ -45,15 +51,8 @@ struct item{
     char buyer[STR_SIZE];
     struct item* ant;
     struct item* prox;
-    pid_t maxBid;
+    bid topBid;
 };
-
-/*typedef struct sale{   //leilão
-    int maxTime;
-    int baseValue;
-    pid_t pid[20];
-    pItem item;
-} sale;*/
 
 typedef struct promoter{
     int pid;
@@ -62,6 +61,7 @@ typedef struct promoter{
 
 typedef struct message{
     pid_t pid;
+    int commandType;        //0->listas|1->Strings;
     char username[STR_SIZE];
     char password[STR_SIZE];
     char command[STR_SIZE];
@@ -69,13 +69,13 @@ typedef struct message{
     int numArgs;
     int res;
     pItem list;
+    char info[256]; //ainda ns se fica assim
 }message;
 
-typedef struct bid{
-    pid_t pid;
-    int ammount;
-    int itemId;
-}bid;
+typedef struct{
+    int frontendPipe;
+    int stop;
+}TDATA;
 
 
 int argsCount(char cmd[]);

@@ -197,15 +197,33 @@ int login(int pipe){
     printf("Logged in succesfully\n");
 }
 
+void* readFromBackendPipe(void* data){
+    TDATA* threadData = (TDATA*) data;
+    message mess;
+    do{
+        int size=read(threadData->frontendPipe,&mess,sizeof(message));
+        if(size<0){
+            printf("Error reading from the pipe\n");
+            threadData->stop=1;
+        }
+        printf("Backend: %s",mess.info);
+    }while(threadData->stop==0);
+    pthread_exit(NULL);
+}
+
+
+
+
+
 int main(int argc, char* argv[]){
-    struct timeval tv;
     char command[STR_SIZE],newCommand[STR_SIZE];
     message mess;
     mess.pid = getpid();
     char buf;
     char fifoName[STR_SIZE];
     int pipe,pipeBackend;
-
+    pthread_t readBackendPipe;
+    TDATA data;
     if(argc < 3){
         printf("Invalid number of arguments\n");
         exit(1);
@@ -213,20 +231,27 @@ int main(int argc, char* argv[]){
 
     sprintf(fifoName,FIFOFRONTEND,getpid());
 
-    /*pipe = setupFrontendPipe(fifoName);
+    pipe = setupFrontendPipe(fifoName);
     pipeBackend = open(FIFOBACKEND,O_WRONLY);
     strcpy(mess.username, argv[1]);
     strcpy(mess.password, argv[2]);
-    writeToBackend(pipeBackend, mess);
+    //writeToBackend(pipeBackend, mess);
     
-    login(pipe);*/
-
+    //login(pipe);
+    data.stop=0;
+    data.frontendPipe=pipe;
+    if(pthread_create(&readBackendPipe,NULL, readFromBackendPipe,&data)==-1){
+        printf("Error creating the thread\n");
+        exit(1);
+    }
     
     //scanf("%c",&buf);
 
     printf("Welcome!\n");
     getCommand();
 
+    data.stop=1;
+    pthread_join(readBackendPipe,NULL);
     close(pipe);
     unlink(fifoName);
 }

@@ -4,7 +4,7 @@
 #include "utils.h"
 
 
-void commandLineFrontend(char* command,message mess,int pipe);
+void getCommand();
 pItem readItemFromBackend(int pipe);
 void list(pItem itemList);
 void licat(pItem itemList, char category[]);
