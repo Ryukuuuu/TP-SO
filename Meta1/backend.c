@@ -18,7 +18,7 @@ pItem itemConstructorFile(pItem itemList,int id,char name[],char category[],int 
     strcpy(newItem->name,name);
     strcpy(newItem->category,category);
     newItem->baseValue=baseValue;
-    newItem->buyNow;
+    newItem->buyNow=buyNow;
     newItem->time=time;
     strcpy(newItem->seller,seller);
     strcpy(newItem->buyer,buyer);
@@ -47,6 +47,7 @@ pItem setupItemList(pItem itemList){
     int id,baseValue,buyNow,time;
     char name[STR_SIZE],category[STR_SIZE],seller[STR_SIZE],buyer[STR_SIZE];
     //printf("Na funcao");
+    printf("%s", getenv(FITEMS));
     fp=fopen(getenv(FITEMS),"r");
     if(fp==NULL){
         printf("No historic/File not found\n");
@@ -91,7 +92,41 @@ int freeSaveList(pItem list){
 }
 
 
+
+//Backend setup
+
+void initializeAmbVars(){
+    setenv(FPROMOTERS,"files/fpromoters.txt",1);
+    setenv(FITEMS,"files/fitems.txt",1);
+    setenv(FUSERS,"files/fusers.txt",1);
+}
+
+
+void endBackend(){
+    //remove(BACKEND_RUN_FILENAME);
+    unsetenv(FPROMOTERS);
+    unsetenv(FITEMS);
+    unsetenv(FUSERS);
+    unlink(FIFOBACKEND);
+}
+
 //Promoters
+
+int loadPromotersFile(promoter updated[]){
+    FILE* f;
+    int i=0;
+    f = fopen(getenv(FPROMOTERS),"r");
+    if(f==NULL){
+        printf("Error opening the file[PROMOTERS]\n");
+        return -1;
+    }
+    while(fscanf(f,"%s",updated[i].nome)==1){
+        printf("%s\n",updated[i].nome);
+        i++;
+    }
+    fclose(f);
+    return 0;
+}
 
 void execPromoter(){
     int p[2];
@@ -123,28 +158,51 @@ void execPromoter(){
     }
 }
 
-//Backend setup
-
-void initializeAmbVars(){
-    setenv(FPROMOTERS,"files/fpromoters.txt",1);
-    setenv(FITEMS,"files/fitems.txt",1);
-    setenv(FUSERS,"files/fusers.txt",1);
+void printAllPromoters(promoter list[]){
+    for(int i=0;i<sizeof(list)-1;i++){
+        printf("%s\n",list[i].nome);
+    }
 }
 
-
-void endBackend(){
-    //remove(BACKEND_RUN_FILENAME);
-    unsetenv(FPROMOTERS);
-    unsetenv(FITEMS);
-    unsetenv(FUSERS);
-    unlink(FIFOBACKEND);
+void clearPromList(promoter list[],promoter updatedList[]){
+    for(int i=0;i<sizeof(list)-1;i++){
+        strcpy(list[i].nome,"");
+        list[i].pid=0;
+    }
+    for(int i=0;i<sizeof(updatedList)-1;i++){
+        list[i] = updatedList[i];
+    }
 }
+
+void launchMissingPromoters(promoter list){
+
+}
+
+void checkRunningPromoters(promoter list[],promoter updatedList[]){
+    int exists=0;
+    union sigval sig;
+    for(int i=0;i<sizeof(updatedList)-1;i++){
+        for(int j=0;j<sizeof(list)-1;j++) {
+            if (strcmp(list[i].nome, updatedList[i].nome) == 0) {
+                exists=1;
+            }
+        }
+        if(exists==0){
+
+            sigqueue(list[i].pid,SIGUSR1,sig);
+        }
+        exists=0;
+    }
+    clearPromList(list,updatedList);
+    printAllPromoters(list);
+}
+
 
 //CMD
 
-void getCommand(){
-    char buf,command[MAX_CMD_SIZE];
-    scanf("%c",&buf);
+void getCommand(promoter promList[]){
+    char command[MAX_CMD_SIZE];
+    promoter updatedPromList[MAX_PROMS];
     char* token;
     fflush(stdin);
     do{
@@ -162,7 +220,9 @@ void getCommand(){
             printf("Promoters\n");
         }
         else if(strcmp(command,"reprom")==0){
-            printf("Update promoters");
+            if(loadPromotersFile(updatedPromList)!=0)
+                printf("Error loading promoters\n");
+            checkRunningPromoters(promList,updatedPromList);
         }
         else if(strcmp(command,"close")==0){
             printf("Closing\n");
@@ -186,99 +246,37 @@ void getCommand(){
     }while(strcmp(command,"close")!=0);
 }
 
-int initializeBackendPipe(){
-    if(mkfifo(FIFOBACKEND,O_RDONLY)==-1){
-        if(errno==EEXIST)
-            printf("Pipe already exists\n");
-        else{
-            printf("Error creating pipe\n");
-            return 1;
-        }
-    
-    }
-    return  open(FIFOBACKEND, O_RDONLY);
-}
-
-//------HOJE------//
-void sendItemList(message mess, pItem firstNode){
-    char pipeName[STR_SIZE];
-
-     mess.list = firstNode;
-     
-     sprintf(pipeName,FIFOFRONTEND,mess.pid);
-     int pipe = open(pipeName,O_WRONLY);
-
-     if(pipe == NULL){
-        printf("Error opening the pipe\n");
-     }
-     else{
-        int size = write(pipe, &mess, sizeof(message));
-        if(size <= 0){
-            printf("error\n");
-        }
-     }
-     close(pipe);
-}
-
 int main(int argc,char* argv[]){
-    int opt,p[2], pipe, pipe_front;
+    int opt,p[2],pipe;
     pItem itemList=NULL;
-    int v;
-    initializeAmbVars();
-    pipe = initializeBackendPipe();
     message mess;
     char pipeName[STR_SIZE];
+    promoter promotersList[MAX_PROMS];
 
+    strcpy(promotersList[0].nome,"teste");
+    strcpy(promotersList[1].nome,"promoters/promotor_oficial");
 
-    int size = read(pipe, &mess, sizeof(mess));
-    if(size>0){
-        printf("Function\n");
-    }
+    initializeAmbVars();
+    printf("AmbVars initialized\n");
 
-    sprintf(pipeName,FIFOFRONTEND,mess.pid);
-    pipe_front = open(pipeName,O_WRONLY);
+    itemList = setupItemList(itemList);
 
-    if(pipe_front == NULL){
-        printf("Error\n");
-    }
-    int valid = 0;
-
-    int size2 = write(pipe_front, &valid, sizeof(int));
-    printf("depois do write\n");
-
-    do{
-    printf("\nQual funcionalidade deseja testar?\n1-Lancamento de promotor e read\n2-Carregamento e atualizacao do saldo dos utilizadores\n3-Carregamentos dos items\n4-Commands\n5-Exit\n");
-    scanf("%d",&opt);
-    switch (opt)
-    {
-    case 1:
-        execPromoter();
-        break;
-    case 2:
-        if(loadUsersFile(getenv(FUSERS))!=-1){
-            updateUserBalance("username1",getUserBalance("username1")-1);
-            updateUserBalance("username2",getUserBalance("username2")-1);
-            saveUsersFile(getenv(FUSERS));
+    if(mkfifo(FIFOBACKEND,0600)==-1){
+        if(errno==EEXIST)
+            printf("backend already running...\n");
+        else{
+            printf("Error creating pipe\n");
         }
-        break;
-    case 3:
-        itemList=setupItemList(itemList);
-        printList(itemList);
-        freeSaveList(itemList);
-        break;
-    case 4:
-        getCommand();
-        break;
-    case 5:
-        printf("Exiting\n");
-        break;
-    default:
-        printf("Opt not found\n");
-        break;
+        exit(1);
     }
-    }while(opt != 5);
+    pipe=open(FIFOBACKEND,O_RDWR);
 
+    getCommand(promotersList);
+
+    //printList(itemList);
+    freeSaveList(itemList);
     close(pipe);
+    unlink(pipe);
     endBackend();
 
     return 0;

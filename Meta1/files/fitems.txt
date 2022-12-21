@@ -1,2 +1,2 @@
-1 nome1 categoria1 100 0 1000 selerUsername1 buyerUsername1
-2 nome2 categoria2 100 0 2000 selerUsername2 buyerUsername2
+1 nome1 categoria1 10 20 1000 seller1 buyer1
+2 nome2 categoria2 10 21 1000 seller2 buyer2

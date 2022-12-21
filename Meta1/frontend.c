@@ -1,8 +1,6 @@
 #include "utils.h"
 #include "frontend.h"
 
-
-
 void getCommand(){
     char* token;
     char command[STR_SIZE];
@@ -210,10 +208,6 @@ void* readFromBackendPipe(void* data){
     }while(threadData->stop==0);
     pthread_exit(NULL);
 }
-
-
-
-
 
 int main(int argc, char* argv[]){
     char command[STR_SIZE],newCommand[STR_SIZE];

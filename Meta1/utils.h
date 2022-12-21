@@ -14,9 +14,9 @@
 #include <errno.h>
 #include <pthread.h>
 
-#define MAX_USERS 20;
-#define MAX_PROMS 10;
-#define MAX_ITEMS 30;
+#define MAX_USERS 20
+#define MAX_PROMS 10
+#define MAX_ITEMS 30
 #define BACKEND_RUN_FILENAME "running.txt"
 #define MAX_CMD_SIZE 50
 #define STR_SIZE 50
@@ -27,6 +27,8 @@
 typedef struct user user,*pUser;
 typedef struct item item,*pItem;
 typedef struct bid bid, *pBid;
+typedef struct promoter promoter, *pPromoter;
+typedef struct promoterList promoterList,*pPromoterList;
 
 struct bid{
     pid_t pid;
@@ -54,10 +56,24 @@ struct item{
     bid topBid;
 };
 
-typedef struct promoter{
+typedef struct promotion{
+    char category[STR_SIZE];
+    int prom;
+    int time;
+}promotion;
+
+struct promoter{
     int pid;
-    char msg[50];
-}promoter;
+    char nome[STR_SIZE];
+    promotion prom;
+    promoter* ant;
+    promoter* prox;
+};
+
+struct promoterList{
+    int numPromoters;
+    promoter* list;
+};
 
 typedef struct message{
     pid_t pid;
