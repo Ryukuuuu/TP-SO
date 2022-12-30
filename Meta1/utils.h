@@ -17,29 +17,25 @@
 #define MAX_USERS 20
 #define MAX_PROMS 10
 #define MAX_ITEMS 30
-#define BACKEND_RUN_FILENAME "running.txt"
 #define MAX_CMD_SIZE 50
 #define STR_SIZE 50
 
 #define FIFOFRONTEND "frontend_%d"
 #define FIFOBACKEND "fifoBackend"
 
-typedef struct user user,*pUser;
 typedef struct item item,*pItem;
 typedef struct bid bid, *pBid;
 typedef struct promoter promoter, *pPromoter;
-typedef struct promoterList promoterList,*pPromoterList;
+typedef struct promoterList promoterList, *pPromoterList;
+typedef struct promotion promotion, *pPromotion;
+typedef struct TDATA TDATA, *pTDATA;
+typedef struct message message, *pMessage;
+
 
 struct bid{
     pid_t pid;
     int ammount;
     int itemId;
-};
-
-struct user{
-    char userName[STR_SIZE];
-    char password[STR_SIZE];
-    int balance;       //saldo
 };
 
 struct item{
@@ -56,26 +52,28 @@ struct item{
     bid topBid;
 };
 
-typedef struct promotion{
+struct promotion{
     char category[STR_SIZE];
     int prom;
     int time;
-}promotion;
+};
 
 struct promoter{
-    int pid;
+    pid_t pid;
     char nome[STR_SIZE];
     promotion prom;
+    int running;
+    int stop;
     promoter* ant;
     promoter* prox;
 };
 
 struct promoterList{
     int numPromoters;
-    promoter* list;
+    pPromoter list;
 };
 
-typedef struct message{
+struct message{
     pid_t pid;
     int commandType;        //0->listas|1->Strings;
     char username[STR_SIZE];
@@ -86,15 +84,17 @@ typedef struct message{
     int res;
     pItem list;
     char info[256]; //ainda ns se fica assim
-}message;
+};
 
-typedef struct{
+struct TDATA{
     int frontendPipe;
     int stop;
-}TDATA;
+};
 
+struct teste{
+    pthread_mutex_t* m;
+};
 
-int argsCount(char cmd[]);
 int stringIsNum(char str[]);
 
 #endif
