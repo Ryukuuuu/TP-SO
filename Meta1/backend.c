@@ -1,8 +1,6 @@
 #include "utils.h"
 #include "backend.h"
 
-
-
 // ITEMS -> Linked list + Item file reading
 
 pItem itemConstructorFile(pItem itemList,int id,char name[],char category[],int baseValue,int buyNow,int time,char seller[],char buyer[]){
@@ -47,7 +45,6 @@ pItem setupItemList(pItem itemList){
     int id,baseValue,buyNow,time;
     char name[STR_SIZE],category[STR_SIZE],seller[STR_SIZE],buyer[STR_SIZE];
     //printf("Na funcao");
-    printf("%s", getenv(FITEMS));
     fp=fopen(getenv(FITEMS),"r");
     if(fp==NULL){
         printf("No historic/File not found\n");
@@ -111,21 +108,128 @@ void endBackend(){
 }
 
 //Promoters
+void stopAllProm(pPromoter list){
+    pPromoter aux=list;
+    while(aux!=NULL){
+        aux->stop=1;
+        aux = aux->prox;
+    }
+}
 
-int loadPromotersFile(promoter updated[]){
+int freeAllPromoterList(pPromoter list){   //Liberta e guarda todos os promotores(Chama-se quando o programa é terminado)
+    pPromoter aux = list;
     FILE* f;
-    int i=0;
-    f = fopen(getenv(FPROMOTERS),"r");
+    f = fopen(getenv(FPROMOTERS),"r+");
     if(f==NULL){
-        printf("Error opening the file[PROMOTERS]\n");
+        printf("Error openning promoters file\n");
         return -1;
     }
-    while(fscanf(f,"%s",updated[i].nome)==1){
-        printf("%s\n",updated[i].nome);
-        i++;
+    while(list!=NULL){
+        aux=list->prox;
+        fprintf(f,"%s",list->nome);
+        if(aux!=NULL){
+            fprintf(f,"\n");
+        }
+        free(list);
+        list = aux;
     }
     fclose(f);
     return 0;
+}
+
+void freePromoters(pPromoterList list){     //Liberta os promotores que ja nao estao presentes no fpromoters.txt
+    pPromoter aux=list->list,node=aux->prox;
+    union sigval si;
+    si.sival_int=0;
+
+    while(aux!=NULL){
+        if(node->stop==1 && node != NULL){
+            printf("Searching for prom to remove\n");
+            aux->prox = node->prox;
+            free(node);
+            aux=aux->prox;
+            node = aux->prox;
+            break;
+        }
+    }
+    printf("After while\n");
+    sigqueue(aux->pid,SIGUSR1,si);
+}
+
+void printPromList(pPromoter list){
+    pPromoter aux=list;
+    while(aux!=NULL){
+        printf("Promoter-> %s\nState-> %d\n",aux->nome,aux->stop);
+        aux = aux->prox;
+    }
+}
+
+int checkIfPromExists(pPromoter list,pPromoter prom){
+    pPromoter aux;
+    if(list==NULL){
+        return 0;
+    }
+    else{
+        aux = list;
+        while(aux!=NULL){
+            if(strcmp(aux->nome,prom->nome)==0){
+                aux->stop=0;
+                return 1;
+            }
+            aux = aux->prox;
+        }
+        return 0;
+    }
+    return -1;
+}
+
+pPromoter addPromoterToList(pPromoter list,pPromoter prom){
+    pPromoter aux = list;
+    if(list == NULL){
+        list = prom;
+        list->prox==NULL;
+    }
+    else{
+        while(aux->prox!=NULL){
+            aux = aux->prox;
+        }
+        aux->prox = prom;
+        aux->stop=0;
+    }
+    return list;
+}
+
+pPromoterList loadPromoterFile(pPromoterList list){
+    pPromoter newPromoter;
+    int numberRead=0;
+    FILE* f;
+
+    stopAllProm(list->list);
+
+    f=fopen(getenv(FPROMOTERS),"r");
+    if(f==NULL){
+        printf("Error openning promoters file");
+        return NULL;
+    }
+    while(!feof(f)){
+        newPromoter= malloc(sizeof(promoter));
+        if(newPromoter==NULL){
+            printf("Error allocating");
+            return NULL;
+        }
+        fscanf(f,"%s",newPromoter->nome);
+        numberRead++;
+        if(!checkIfPromExists(list->list,newPromoter)){
+            list->list = addPromoterToList(list->list,newPromoter);
+        }
+    }
+    list->numPromoters=numberRead;
+    fclose(f);
+    return list;
+}
+
+void* readFromPromoter(void* data){
+
 }
 
 void execPromoter(){
@@ -158,53 +262,20 @@ void execPromoter(){
     }
 }
 
-void printAllPromoters(promoter list[]){
-    for(int i=0;i<sizeof(list)-1;i++){
-        printf("%s\n",list[i].nome);
-    }
-}
-
-void clearPromList(promoter list[],promoter updatedList[]){
-    for(int i=0;i<sizeof(list)-1;i++){
-        strcpy(list[i].nome,"");
-        list[i].pid=0;
-    }
-    for(int i=0;i<sizeof(updatedList)-1;i++){
-        list[i] = updatedList[i];
-    }
-}
-
-void launchMissingPromoters(promoter list){
-
-}
-
-void checkRunningPromoters(promoter list[],promoter updatedList[]){
-    int exists=0;
-    union sigval sig;
-    for(int i=0;i<sizeof(updatedList)-1;i++){
-        for(int j=0;j<sizeof(list)-1;j++) {
-            if (strcmp(list[i].nome, updatedList[i].nome) == 0) {
-                exists=1;
-            }
-        }
-        if(exists==0){
-
-            sigqueue(list[i].pid,SIGUSR1,sig);
-        }
-        exists=0;
-    }
-    clearPromList(list,updatedList);
-    printAllPromoters(list);
-}
-
 
 //CMD
 
-void getCommand(promoter promList[]){
+void getCommand(){
     char command[MAX_CMD_SIZE];
-    promoter updatedPromList[MAX_PROMS];
     char* token;
-    fflush(stdin);
+    pItem itemList=NULL;
+    pPromoterList promList;
+
+    
+
+    promList->numPromoters=0;
+    promList->list=NULL;
+    itemList = setupItemList(itemList);
     do{
         printf("\nCommand: ");
         fgets(command,sizeof(command),stdin);
@@ -218,11 +289,12 @@ void getCommand(promoter promList[]){
         }
         else if(strcmp(command,"prom")==0){
             printf("Promoters\n");
+            printPromList(promList->list);
         }
         else if(strcmp(command,"reprom")==0){
-            if(loadPromotersFile(updatedPromList)!=0)
-                printf("Error loading promoters\n");
-            checkRunningPromoters(promList,updatedPromList);
+            promList = loadPromoterFile(promList);
+            printf("\nPromoters running-> %d\n",promList->numPromoters);
+
         }
         else if(strcmp(command,"close")==0){
             printf("Closing\n");
@@ -244,22 +316,20 @@ void getCommand(promoter promList[]){
             }
         }
     }while(strcmp(command,"close")!=0);
+    if(freeAllPromoterList(promList->list)==0){
+        printf("Promoters freed successfully\n");
+    }
+    freeSaveList(itemList);
 }
 
 int main(int argc,char* argv[]){
     int opt,p[2],pipe;
-    pItem itemList=NULL;
     message mess;
     char pipeName[STR_SIZE];
-    promoter promotersList[MAX_PROMS];
 
-    strcpy(promotersList[0].nome,"teste");
-    strcpy(promotersList[1].nome,"promoters/promotor_oficial");
 
     initializeAmbVars();
-    printf("AmbVars initialized\n");
 
-    itemList = setupItemList(itemList);
 
     if(mkfifo(FIFOBACKEND,0600)==-1){
         if(errno==EEXIST)
@@ -271,10 +341,11 @@ int main(int argc,char* argv[]){
     }
     pipe=open(FIFOBACKEND,O_RDWR);
 
-    getCommand(promotersList);
+    getCommand();
+
 
     //printList(itemList);
-    freeSaveList(itemList);
+    
     close(pipe);
     unlink(pipe);
     endBackend();
