@@ -30,7 +30,8 @@ typedef struct promoterList promoterList, *pPromoterList;
 typedef struct promotion promotion, *pPromotion;
 typedef struct TDATA TDATA, *pTDATA;
 typedef struct message message, *pMessage;
-
+typedef struct promThread promThread,*pPromThread;
+typedef struct promoterThreadInfo promoterThreadInfo, *pPromoterThreadInfo;
 
 struct bid{
     pid_t pid;
@@ -91,8 +92,18 @@ struct TDATA{
     int stop;
 };
 
-struct teste{
+struct promThread{
+    int stop;
+    int pipe;
     pthread_mutex_t* m;
+    pPromoter p;
+    pthread_t t;
+};
+
+struct promoterThreadInfo{
+    int currentNumThreads;
+    promThread threadArray[MAX_PROMS];
+    int stopAll;
 };
 
 int stringIsNum(char str[]);

@@ -116,9 +116,40 @@ void stopAllProm(pPromoter list){
     }
 }
 
+/*int writePromToFile(pPromoterList list){
+    pPromoter aux = list;
+    FILE* f;
+
+
+    printf("Active promoters-> %d",list->numPromoters);
+    printPromList(list->list);
+    
+    if(list->numPromoters==1 && list->list->stop == 1){
+        list->list = NULL;
+    }
+
+    f = fopen(getenv(FPROMOTERS),"w");
+    if(f==NULL){
+        printf("Error openning promoters file\n");
+        return -1;
+    }
+    while(aux!=NULL){
+        fprintf(f,"%s",aux->nome);
+        if(aux->prox!=NULL){
+            fprintf(f,"\n");
+        }
+        aux = aux->prox;
+    }
+    fclose(f);
+    return 0;
+}*/
+
 int freeAllPromoterList(pPromoter list){   //Liberta e guarda todos os promotores(Chama-se quando o programa é terminado)
     pPromoter aux = list;
     FILE* f;
+
+    printPromList(list);
+
     f = fopen(getenv(FPROMOTERS),"r+");
     if(f==NULL){
         printf("Error openning promoters file\n");
@@ -138,28 +169,41 @@ int freeAllPromoterList(pPromoter list){   //Liberta e guarda todos os promotore
 }
 
 void freePromoters(pPromoterList list){     //Liberta os promotores que ja nao estao presentes no fpromoters.txt
-    pPromoter aux=list->list,node=aux->prox;
+    pPromoter aux=list->list,node;
+
     union sigval si;
     si.sival_int=0;
 
-    while(aux!=NULL){
-        if(node->stop==1 && node != NULL){
-            printf("Searching for prom to remove\n");
-            aux->prox = node->prox;
-            free(node);
-            aux=aux->prox;
-            node = aux->prox;
-            break;
-        }
+    if(aux != NULL && aux->stop==1){
+        list->list = list->list->prox;
+        free(aux);
+        return;
     }
-    printf("After while\n");
+
+    while(aux!=NULL && aux->stop!=1){
+        node = aux;
+        aux = aux->prox;
+    }
+    if(aux==NULL){
+        return;
+    }
+
+    node->prox = aux->prox;
     sigqueue(aux->pid,SIGUSR1,si);
+    aux->stop=1;
+    list->numPromoters--;
+    free(aux);
+
+
+    //writePromToFile(list);
+    
 }
 
 void printPromList(pPromoter list){
     pPromoter aux=list;
     while(aux!=NULL){
         printf("Promoter-> %s\nState-> %d\n",aux->nome,aux->stop);
+        fflush(stdout);
         aux = aux->prox;
     }
 }
@@ -229,17 +273,31 @@ pPromoterList loadPromoterFile(pPromoterList list){
 }
 
 void* readFromPromoter(void* data){
-
+    char msg[STR_SIZE];
+    pPromThread pData = (pPromThread) data;
+    do{
+        read(pData->pipe,msg,sizeof(msg));
+        msg[strcspn(msg,"\n")]=0;
+        printf("\n-> %s\n",msg);
+    }while(pData->p->stop == 0);
+    printf("Ending thread\n");
+    pthread_exit(NULL);
 }
 
-void execPromoter(){
+int execPromoter(pPromoter prom,pPromThread threadPromoter){
     int p[2];
-    char msg[STR_SIZE];
-    char nomeProm[STR_SIZE];
-    //nomeProm=readPromoterFile();
-
+    pthread_t newThread;
+    threadPromoter->p = prom;
+    threadPromoter->stop=0;
+    
     pipe(p);
-    //printf("NO EXEC");
+
+    if(prom->running==1){
+        printf("Promoter already running\n");
+        return 0;
+    }
+    
+    //printf("NO EXEC\n");
     int pid=fork();
     if(pid==0){
         //printf("\nProcesso filho\n");
@@ -248,34 +306,57 @@ void execPromoter(){
         close(p[0]);
         close(p[1]);
         fflush(stdout);
-        //fprintf(stderr,"DFGDF");
-        execl("promoters/promotor_oficial","promoters/promotor_oficial",NULL);
+        prom->running=1;
+        //fprintf(stderr,"DFGDF\n");
+        execl(prom->nome,prom->nome,NULL);
+        prom->running=0;
+        prom->pid=0;    
+        fprintf(stderr,"Error lauching promoter: %s\n",prom->nome);
+        return -1;
     }
     else if(pid>0){
-        //prom->pid=pid;
+        prom->pid=pid;
+        //printf("\nTESTE-> %d\n",prom->pid);
         fflush(stdout);
         fflush(stdin);
         close(p[1]);
-        read(p[0],msg,sizeof(msg));
-        msg[strcspn(msg,"\n")]=0;
-        printf("\n-> %s\n",msg);
+        threadPromoter->pipe = p[0];
+        //printf("Create thread[PROM]\n");
+        if(pthread_create(&newThread,NULL,&readFromPromoter,threadPromoter)!=0){
+            printf("promoter thread not created\n");
+        }
+        threadPromoter->t = newThread;
+        prom->running=1;
+        //printf("THREAD\n");
+        
     }
+    return 1;
 }
 
+int cancelPromoter(pPromoter list,char* nome){
+    pPromoter aux = list;
+
+    while(aux!=NULL){
+        if(strcmp(aux->nome,nome)==0){
+            aux->stop=1;
+        }
+        aux=aux->prox;
+    }
+    printPromList(list);
+}
 
 //CMD
 
-void getCommand(){
+void getCommand(pPromoterThreadInfo promoterThreads){
     char command[MAX_CMD_SIZE];
     char* token;
-    pItem itemList=NULL;
     pPromoterList promList;
-
-    
 
     promList->numPromoters=0;
     promList->list=NULL;
-    itemList = setupItemList(itemList);
+    //printf("GSDFSDF");
+    promoterThreads->currentNumThreads=0;
+    
     do{
         printf("\nCommand: ");
         fgets(command,sizeof(command),stdin);
@@ -288,13 +369,24 @@ void getCommand(){
             printf("Show users list\n");
         }
         else if(strcmp(command,"prom")==0){
-            printf("Promoters\n");
             printPromList(promList->list);
         }
         else if(strcmp(command,"reprom")==0){
+            
             promList = loadPromoterFile(promList);
-            printf("\nPromoters running-> %d\n",promList->numPromoters);
-
+            pPromoter aux = promList->list;
+            
+            //printf("\n\n%s\n\n",aux->nome);
+            //printf("\nPromoters running-> %d\n",promList->numPromoters);
+            for(int i=0;i<promList->numPromoters && aux!=NULL;i++){
+                if(execPromoter(aux,&promoterThreads->threadArray[i]) == 1){
+                    promoterThreads->currentNumThreads++;
+                    //printf("Promotor lancado-> %d\n",promoterThreads->currentNumThreads);
+                }
+                aux = aux->prox;
+            }
+            printPromList(promList->list);
+            freePromoters(promList);
         }
         else if(strcmp(command,"close")==0){
             printf("Closing\n");
@@ -305,7 +397,8 @@ void getCommand(){
             if(strcmp(command,"cancel")==0){
                 token = strtok(NULL," ");
                 printf("Ending promoter %s\n",token);
-                
+                cancelPromoter(promList->list,token);
+                freePromoters(promList);
             }
             else if(strcmp(command,"kick")==0){
                 token = strtok(NULL," ");
@@ -319,16 +412,27 @@ void getCommand(){
     if(freeAllPromoterList(promList->list)==0){
         printf("Promoters freed successfully\n");
     }
-    freeSaveList(itemList);
+}
+
+void endPromotersThreads(pPromoterThreadInfo promotersThreads){
+    for(int i=0;i<promotersThreads->currentNumThreads;i++){
+        promotersThreads->threadArray[i].stop=1;
+    }
 }
 
 int main(int argc,char* argv[]){
     int opt,p[2],pipe;
     message mess;
     char pipeName[STR_SIZE];
+    pPromoterThreadInfo promotersThreads = malloc(sizeof(promoterThreadInfo));
+    //promotersThreads->threadArray = malloc(sizeof(pPromThread)*MAX_PROMS);
+    promotersThreads->currentNumThreads=0;
 
+    pItem itemList=NULL;
 
     initializeAmbVars();
+
+     itemList = setupItemList(itemList);
 
 
     if(mkfifo(FIFOBACKEND,0600)==-1){
@@ -341,13 +445,18 @@ int main(int argc,char* argv[]){
     }
     pipe=open(FIFOBACKEND,O_RDWR);
 
-    getCommand();
+    getCommand(promotersThreads);
 
 
     //printList(itemList);
-    
+    /*for(int i=0;i<promotersThreads->currentNumThreads;i++){
+        pthread_join(promotersThreads->threadArray[i].t,NULL);
+    }*/
+    free(promotersThreads);
+    freeSaveList(itemList);
     close(pipe);
     unlink(pipe);
+
     endBackend();
 
     return 0;

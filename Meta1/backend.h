@@ -16,7 +16,7 @@ void printList(pItem list);
 int freeSaveList(pItem list);
 
 //Promoters
-void execPromoter();
+int execPromoter(pPromoter prom,pPromThread threadPromoters);
 
 //backend setup
 void initializeAmbvars();
@@ -27,3 +27,4 @@ void endBackend();
 void getCommand();
 
 #endif
+        

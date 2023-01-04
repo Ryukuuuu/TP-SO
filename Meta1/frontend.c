@@ -218,7 +218,7 @@ int main(int argc, char* argv[]){
     int pipe,pipeBackend;
     pthread_t readBackendPipe;
     TDATA data;
-    struct teste t;
+    
     if(argc < 3){
         printf("Invalid number of arguments\n");
         exit(1);
