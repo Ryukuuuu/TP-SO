@@ -176,6 +176,7 @@ void freePromoters(pPromoterList list){     //Liberta os promotores que ja nao e
 
     if(aux != NULL && aux->stop==1){
         list->list = list->list->prox;
+        list->numPromoters--;
         free(aux);
         return;
     }
@@ -370,6 +371,7 @@ void getCommand(pPromoterThreadInfo promoterThreads){
         }
         else if(strcmp(command,"prom")==0){
             printPromList(promList->list);
+            printf("Number promoters->%d",promList->numPromoters);
         }
         else if(strcmp(command,"reprom")==0){
             
