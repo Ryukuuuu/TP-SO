@@ -56,9 +56,7 @@ pItem setupItemList(pItem itemList){
         //printf("-----------------------\n%d %s %s %d %d %d %s %s\n--------------------\n",itemList->id,itemList->name,itemList->category,itemList->baseValue,itemList->buyNow,itemList->time,itemList->seller,itemList->buyer);
         //printf("No ciclo\n");
     }
-    if(itemList->prox==NULL){
-        printf("A lista nao inicializa");
-    }
+    
     fclose(fp);
     return itemList;
 }
@@ -348,7 +346,7 @@ int cancelPromoter(pPromoter list,char* nome){
 
 //CMD
 
-void getCommand(pPromoterThreadInfo promoterThreads){
+void getCommand(pPromoterThreadInfo promoterThreads,pItem itemList){
     char command[MAX_CMD_SIZE];
     char* token;
     pPromoterList promList;
@@ -365,6 +363,7 @@ void getCommand(pPromoterThreadInfo promoterThreads){
 
         if(strcmp(command,"list")==0){
             printf("Show list\n");
+            printList(itemList);
         }
         else if(strcmp(command,"users")==0){
             printf("Show users list\n");
@@ -447,7 +446,7 @@ int main(int argc,char* argv[]){
     }
     pipe=open(FIFOBACKEND,O_RDWR);
 
-    getCommand(promotersThreads);
+    getCommand(promotersThreads,itemList);
 
 
     //printList(itemList);
