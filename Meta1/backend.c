@@ -145,10 +145,17 @@ void stopAllProm(pPromoter list){
 int freeAllPromoterList(pPromoter list){   //Liberta e guarda todos os promotores(Chama-se quando o programa é terminado)
     pPromoter aux = list;
     FILE* f;
+    union sigval si;
+    si.sival_int=0;
 
     printPromList(list);
+    while(aux!=NULL){
+        aux->stop=1;
+        sigqueue(aux->pid,SIGUSR1,si);
+        aux = aux->prox;
+    }
 
-    f = fopen(getenv(FPROMOTERS),"r+");
+    f = fopen(getenv(FPROMOTERS),"w");
     if(f==NULL){
         printf("Error openning promoters file\n");
         return -1;
@@ -166,26 +173,50 @@ int freeAllPromoterList(pPromoter list){   //Liberta e guarda todos os promotore
     return 0;
 }
 
-void freePromoters(pPromoterList list){     //Liberta os promotores que ja nao estao presentes no fpromoters.txt
+int orderPromThreads(pPromoterThreadInfo info,int index){
+    printf("In order function\n");
+    if(info->currentNumThreads == index+1){ //nao é necessario ordenar porque a thread que acabou está no fim do array
+        printf("Nothing to order\n");
+        return 0;
+    }
+    else{
+        pthread_t aux;
+        for(int i=index;i<info->currentNumThreads;i++){
+            printf("Reording\n");
+            fflush(stdout);
+            aux = info->threadArray[i+1].t;
+            info->threadArray[i].t = aux;
+            return 0;
+        }
+    }
+    return -1;
+}
+
+void freePromoters(pPromoterList list,pPromoterThreadInfo info){     //Liberta os promotores que ja nao estao presentes no fpromoters.txt
     pPromoter aux=list->list,node;
+    int index=0;
 
     union sigval si;
     si.sival_int=0;
 
-    if(aux != NULL && aux->stop==1){
+    if(aux != NULL && aux->stop==1){    //Retira o primeiro elemento da lista
         list->list = list->list->prox;
         list->numPromoters--;
+        sigqueue(aux->pid,SIGUSR1,si);
+        orderPromThreads(info,index);
         free(aux);
         return;
     }
 
-    while(aux!=NULL && aux->stop!=1){
+    while(aux!=NULL && aux->stop!=1){  
         node = aux;
         aux = aux->prox;
+        index++;
     }
-    if(aux==NULL){
+    if(aux==NULL){  //O elemento a retirar já não existe na lista
         return;
     }
+    orderPromThreads(info,index);
 
     node->prox = aux->prox;
     sigqueue(aux->pid,SIGUSR1,si);
@@ -249,6 +280,7 @@ pPromoterList loadPromoterFile(pPromoterList list){
 
     stopAllProm(list->list);
 
+
     f=fopen(getenv(FPROMOTERS),"r");
     if(f==NULL){
         printf("Error openning promoters file");
@@ -279,7 +311,8 @@ void* readFromPromoter(void* data){
         msg[strcspn(msg,"\n")]=0;
         printf("\n-> %s\n",msg);
     }while(pData->p->stop == 0);
-    printf("Ending thread\n");
+    //printf("\n------------------------\nEnding thread\n-----------------------\n");
+    fflush(stdout);
     pthread_exit(NULL);
 }
 
@@ -371,9 +404,10 @@ void getCommand(pPromoterThreadInfo promoterThreads,pItem itemList){
         else if(strcmp(command,"prom")==0){
             printPromList(promList->list);
             printf("Number promoters->%d",promList->numPromoters);
+            fflush(stdout);
         }
         else if(strcmp(command,"reprom")==0){
-            
+            fflush(stdout);
             promList = loadPromoterFile(promList);
             pPromoter aux = promList->list;
             
@@ -387,7 +421,8 @@ void getCommand(pPromoterThreadInfo promoterThreads,pItem itemList){
                 aux = aux->prox;
             }
             printPromList(promList->list);
-            freePromoters(promList);
+
+            freePromoters(promList,promoterThreads);
         }
         else if(strcmp(command,"close")==0){
             printf("Closing\n");
@@ -399,7 +434,7 @@ void getCommand(pPromoterThreadInfo promoterThreads,pItem itemList){
                 token = strtok(NULL," ");
                 printf("Ending promoter %s\n",token);
                 cancelPromoter(promList->list,token);
-                freePromoters(promList);
+                freePromoters(promList,promoterThreads);
             }
             else if(strcmp(command,"kick")==0){
                 token = strtok(NULL," ");
@@ -410,14 +445,12 @@ void getCommand(pPromoterThreadInfo promoterThreads,pItem itemList){
             }
         }
     }while(strcmp(command,"close")!=0);
-    if(freeAllPromoterList(promList->list)==0){
-        printf("Promoters freed successfully\n");
-    }
-}
 
-void endPromotersThreads(pPromoterThreadInfo promotersThreads){
-    for(int i=0;i<promotersThreads->currentNumThreads;i++){
-        promotersThreads->threadArray[i].stop=1;
+    //stopAllProm(promList->list);
+    //freePromoters(promList);
+
+    if(freeAllPromoterList(promList->list)!=0){
+        printf("Error freeing promoters list\n");
     }
 }
 
@@ -447,12 +480,17 @@ int main(int argc,char* argv[]){
     pipe=open(FIFOBACKEND,O_RDWR);
 
     getCommand(promotersThreads,itemList);
-
+    fflush(stdout);
 
     //printList(itemList);
-    /*for(int i=0;i<promotersThreads->currentNumThreads;i++){
-        pthread_join(promotersThreads->threadArray[i].t,NULL);
-    }*/
+
+
+    for(int i=0;i<promotersThreads->currentNumThreads;i++){
+        promotersThreads->threadArray[i].stop=1;
+        printf("No pthread_join");
+        pthread_join(&promotersThreads->threadArray[i].t,NULL);
+        printf("depois do pthread_join\n");
+    }
     free(promotersThreads);
     freeSaveList(itemList);
     close(pipe);
